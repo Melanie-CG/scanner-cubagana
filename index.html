@@ -2,8 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <title>Scanner Cubagana</title>
 
@@ -16,60 +15,59 @@
 
     body {
       margin: 0;
+      padding: 20px;
       background: #f4f4f4;
       font-family: Arial, sans-serif;
       color: #111;
     }
 
-    .wrap {
-      max-width: 520px;
-      margin: auto;
-      padding: 16px;
-    }
-
     .card {
+      max-width: 600px;
+      margin: auto;
       background: white;
-      border-radius: 20px;
-      padding: 20px;
-      box-shadow: 0 4px 18px rgba(0,0,0,.10);
+      padding: 28px;
+      border-radius: 28px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
     }
 
     h1 {
-      margin: 0;
       text-align: center;
-      font-size: 28px;
+      font-size: 36px;
+      margin: 0 0 8px;
     }
 
     .subtitle {
       text-align: center;
+      font-size: 22px;
       color: #666;
-      margin: 8px 0 22px;
+      margin-bottom: 35px;
     }
 
     label {
       display: block;
+      font-size: 22px;
       font-weight: bold;
-      margin-top: 14px;
+      margin-top: 22px;
+      margin-bottom: 10px;
     }
 
     input,
     select {
       width: 100%;
-      padding: 14px;
-      margin-top: 7px;
-      border: 1px solid #ccc;
-      border-radius: 12px;
-      font-size: 17px;
+      padding: 18px;
+      font-size: 22px;
+      border: 2px solid #ccc;
+      border-radius: 18px;
       background: white;
     }
 
     button {
       width: 100%;
-      padding: 15px;
-      margin-top: 18px;
-      border: 0;
-      border-radius: 13px;
-      font-size: 18px;
+      margin-top: 28px;
+      padding: 20px;
+      border: none;
+      border-radius: 18px;
+      font-size: 23px;
       font-weight: bold;
       cursor: pointer;
     }
@@ -86,626 +84,17 @@
     }
 
     #reader {
-      width: 100%;
-      margin-top: 18px;
-      border-radius: 15px;
+      margin-top: 28px;
+      border-radius: 22px;
       overflow: hidden;
     }
 
     #status {
+      margin-top: 18px;
       text-align: center;
-      margin-top: 12px;
-      font-size: 14px;
+      font-size: 20px;
       color: #666;
     }
 
     #result {
-      display: none;
-      margin-top: 18px;
-      padding: 18px;
-      border-radius: 15px;
-      text-align: center;
-    }
-
-    .success {
-      background: #e6f7eb;
-    }
-
-    .duplicate {
-      background: #fff4ce;
-    }
-
-    .expired,
-    .unknown,
-    .error {
-      background: #fde5e5;
-    }
-
-    .name {
-      font-size: 25px;
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
-
-    .message {
-      margin-top: 10px;
-      font-weight: bold;
-      font-size: 18px;
-    }
-
-    .small {
-      font-size: 14px;
-      color: #555;
-      margin-top: 4px;
-    }
-  </style>
-</head>
-
-<body>
-
-<div class="wrap">
-  <div class="card">
-
-    <h1>💃 Scanner Cubagana</h1>
-
-    <div class="subtitle">
-      Contrôle des adhésions et des présences
-    </div>
-
-    <label for="prof">Prénom du professeur</label>
-
-    <input
-      id="prof"
-      type="text"
-      placeholder="Ex. Mélanie"
-      autocomplete="name"
-    >
-
-    <label for="cours">Discipline</label>
-
-    <select id="cours">
-      <option value="">Choisir une discipline</option>
-      <option value="Salsa">Salsa</option>
-      <option value="Bachata">Bachata</option>
-      <option value="Lady Style">Lady Style</option>
-    </select>
-
-    <button id="startBtn">
-      📷 Démarrer le scan
-    </button>
-
-    <button id="stopBtn">
-      Arrêter la caméra
-    </button>
-
-    <div id="reader"></div>
-
-    <div id="status"></div>
-
-    <div id="result"></div>
-
-  </div>
-</div>
-
-
-<script>
-
-/*
-  Adresse de l'application Google Apps Script
-*/
-const API_URL =
-  "https://script.google.com/macros/s/AKfycbxqxN3G5sxRZr4nNCmOtZv33DgoJ8ruTDtOjl-LZnG77-bq_eNyzJ4j5MqmptYZMo77gg/exec";
-
-
-let scanner = null;
-let scannerRunning = false;
-let locked = false;
-
-
-/*
-  Préremplissage depuis l'URL
-  Exemple :
-  ?prof=Julie&cours=Salsa
-*/
-const params =
-  new URLSearchParams(window.location.search);
-
-if (params.get("prof")) {
-  document.getElementById("prof").value =
-    params.get("prof");
-}
-
-if (params.get("cours")) {
-  document.getElementById("cours").value =
-    params.get("cours");
-}
-
-
-/*
-  Boutons
-*/
-document
-  .getElementById("startBtn")
-  .addEventListener("click", startScanner);
-
-document
-  .getElementById("stopBtn")
-  .addEventListener("click", stopScanner);
-
-
-/*
-  Démarrage caméra
-*/
-async function startScanner() {
-
-  const prof =
-    document.getElementById("prof").value.trim();
-
-  const cours =
-    document.getElementById("cours").value;
-
-
-  if (!prof) {
-    showResult({
-      type: "error",
-      message: "Indique le prénom du professeur."
-    });
-    return;
-  }
-
-
-  if (!cours) {
-    showResult({
-      type: "error",
-      message: "Choisis une discipline."
-    });
-    return;
-  }
-
-
-  hideResult();
-
-  document.getElementById("status").textContent =
-    "Demande d’accès à la caméra…";
-
-
-  try {
-
-    scanner =
-      new Html5Qrcode("reader");
-
-
-    const cameras =
-      await Html5Qrcode.getCameras();
-
-
-    if (!cameras || cameras.length === 0) {
-      throw new Error(
-        "Aucune caméra détectée."
-      );
-    }
-
-
-    /*
-      On privilégie la caméra arrière.
-    */
-    let selectedCamera =
-      cameras[0];
-
-
-    const rearCamera =
-      cameras.find(camera => {
-
-        const label =
-          String(camera.label || "")
-            .toLowerCase();
-
-        return (
-          label.includes("back") ||
-          label.includes("rear") ||
-          label.includes("environment") ||
-          label.includes("arrière")
-        );
-
-      });
-
-
-    if (rearCamera) {
-      selectedCamera = rearCamera;
-    }
-    else if (cameras.length > 1) {
-      selectedCamera =
-        cameras[cameras.length - 1];
-    }
-
-
-    await scanner.start(
-
-      selectedCamera.id,
-
-      {
-        fps: 10,
-
-        qrbox: function(
-          viewfinderWidth,
-          viewfinderHeight
-        ) {
-
-          const size =
-            Math.floor(
-              Math.min(
-                viewfinderWidth,
-                viewfinderHeight
-              ) * 0.70
-            );
-
-          return {
-            width: size,
-            height: size
-          };
-        }
-      },
-
-      onScanSuccess,
-
-      function() {
-        /*
-          Les erreurs pendant la recherche
-          du QR sont normales.
-        */
-      }
-
-    );
-
-
-    scannerRunning = true;
-
-    document.getElementById("startBtn").style.display =
-      "none";
-
-    document.getElementById("stopBtn").style.display =
-      "block";
-
-    document.getElementById("status").textContent =
-      "✅ Caméra active — présentez le QR code.";
-
-  }
-  catch (error) {
-
-    console.error(error);
-
-    document.getElementById("status").textContent =
-      "";
-
-    showResult({
-      type: "error",
-      message:
-        "Impossible d’ouvrir la caméra : " +
-        error
-    });
-
-  }
-}
-
-
-/*
-  QR détecté
-*/
-function onScanSuccess(decodedText) {
-
-  if (locked) {
-    return;
-  }
-
-  locked = true;
-
-
-  if (navigator.vibrate) {
-    navigator.vibrate(80);
-  }
-
-
-  document.getElementById("status").textContent =
-    "QR détecté — vérification…";
-
-
-  const prof =
-    document.getElementById("prof").value.trim();
-
-  const cours =
-    document.getElementById("cours").value;
-
-
-  envoyerScan(
-    decodedText,
-    prof,
-    cours
-  );
-}
-
-
-/*
-  Communication avec Google Apps Script.
-
-  JSONP permet au site GitHub Pages
-  de communiquer avec Apps Script sans
-  être bloqué par les règles CORS.
-*/
-function envoyerScan(qr, prof, cours) {
-
-  const callbackName =
-    "cubaganaCallback_" +
-    Date.now();
-
-
-  const script =
-    document.createElement("script");
-
-
-  const timeout =
-    setTimeout(function() {
-
-      cleanup();
-
-      showResult({
-        type: "error",
-        message:
-          "La vérification Google a pris trop de temps."
-      });
-
-      locked = false;
-
-    }, 15000);
-
-
-  window[callbackName] =
-    function(response) {
-
-      clearTimeout(timeout);
-
-      cleanup();
-
-      showResult(response);
-
-      document.getElementById("status").textContent =
-        "Présentez le QR code suivant.";
-
-      setTimeout(function() {
-        locked = false;
-      }, 1800);
-
-    };
-
-
-  function cleanup() {
-
-    if (script.parentNode) {
-      script.parentNode.removeChild(script);
-    }
-
-    try {
-      delete window[callbackName];
-    }
-    catch(e) {
-      window[callbackName] = undefined;
-    }
-  }
-
-
-  const url =
-    API_URL +
-    "?api=scan" +
-    "&qr=" +
-    encodeURIComponent(qr) +
-    "&prof=" +
-    encodeURIComponent(prof) +
-    "&cours=" +
-    encodeURIComponent(cours) +
-    "&callback=" +
-    encodeURIComponent(callbackName) +
-    "&t=" +
-    Date.now();
-
-
-  script.src = url;
-
-  script.onerror =
-    function() {
-
-      clearTimeout(timeout);
-
-      cleanup();
-
-      showResult({
-        type: "error",
-        message:
-          "Impossible de joindre Google Sheets."
-      });
-
-      locked = false;
-
-    };
-
-
-  document.body.appendChild(script);
-
-}
-
-
-/*
-  Affichage résultat
-*/
-function showResult(r) {
-
-  r = r || {};
-
-  const result =
-    document.getElementById("result");
-
-  result.className =
-    r.type || "error";
-
-  result.style.display =
-    "block";
-
-
-  let html = "";
-
-
-  if (r.adherent) {
-
-    html +=
-      '<div class="name">' +
-      escapeHtml(r.adherent.prenom || "") +
-      " " +
-      escapeHtml(r.adherent.nom || "") +
-      "</div>";
-
-
-    if (r.adherent.cours) {
-
-      html +=
-        '<div class="small">' +
-        escapeHtml(r.adherent.cours) +
-        "</div>";
-
-    }
-
-
-    if (r.adherent.formule) {
-
-      html +=
-        '<div class="small">' +
-        escapeHtml(r.adherent.formule) +
-        "</div>";
-
-    }
-
-  }
-
-
-  html +=
-    '<div class="message">' +
-    escapeHtml(
-      r.message ||
-      "Réponse inconnue."
-    ) +
-    "</div>";
-
-
-  result.innerHTML =
-    html;
-
-}
-
-
-/*
-  Masquer l'ancien résultat
-*/
-function hideResult() {
-
-  const result =
-    document.getElementById("result");
-
-  result.style.display =
-    "none";
-
-  result.innerHTML =
-    "";
-
-}
-
-
-/*
-  Sécurité affichage texte
-*/
-function escapeHtml(value) {
-
-  return String(value || "")
-    .replace(
-      /[&<>"']/g,
-      function(c) {
-
-        return {
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;"
-        }[c];
-
-      }
-    );
-
-}
-
-
-/*
-  Arrêt caméra
-*/
-async function stopScanner() {
-
-  try {
-
-    if (
-      scanner &&
-      scannerRunning
-    ) {
-
-      await scanner.stop();
-
-      scanner.clear();
-
-    }
-
-  }
-  catch(e) {
-    console.log(e);
-  }
-
-
-  scanner = null;
-  scannerRunning = false;
-
-
-  document.getElementById("reader").innerHTML =
-    "";
-
-  document.getElementById("startBtn").style.display =
-    "block";
-
-  document.getElementById("stopBtn").style.display =
-    "none";
-
-  document.getElementById("status").textContent =
-    "Caméra arrêtée.";
-
-}
-
-
-/*
-  Arrêt lorsque la page est quittée
-*/
-window.addEventListener(
-  "beforeunload",
-  function() {
-
-    if (
-      scanner &&
-      scannerRunning
-    ) {
-
-      try {
-        scanner.stop();
-      }
-      catch(e) {}
-
-    }
-
-  }
-);
-
-</script>
-
-</body>
-</html>
+      display:
