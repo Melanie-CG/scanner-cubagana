@@ -97,4 +97,482 @@
     }
 
     #result {
-      display:
+      display: none;
+      margin-top: 24px;
+      padding: 25px;
+      border-radius: 22px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .success {
+      background: #dff5e5;
+      color: #146c2e;
+    }
+
+    .duplicate {
+      background: #fff1c7;
+      color: #7a5800;
+    }
+
+    .expired,
+    .unknown,
+    .error {
+      background: #ffdede;
+      color: #8b0000;
+    }
+
+    .name {
+      font-size: 30px;
+      margin-bottom: 10px;
+    }
+
+    .details {
+      font-size: 18px;
+      font-weight: normal;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="card">
+
+  <h1>💃 Scanner Cubagana</h1>
+
+  <div class="subtitle">
+    Contrôle des adhésions et des présences
+  </div>
+
+  <label for="prof">
+    Prénom du professeur
+  </label>
+
+  <input
+    id="prof"
+    type="text"
+    placeholder="Ex. Mélanie"
+  >
+
+  <label for="cours">
+    Discipline
+  </label>
+
+  <select id="cours">
+    <option value="">Choisir une discipline</option>
+    <option value="Salsa">Salsa</option>
+    <option value="Bachata">Bachata</option>
+    <option value="Lady Style">Lady Style</option>
+  </select>
+
+  <button id="startBtn" onclick="startScanner()">
+    📷 Démarrer le scan
+  </button>
+
+  <button id="stopBtn" onclick="stopScanner()">
+    Arrêter la caméra
+  </button>
+
+  <div id="reader"></div>
+
+  <div id="status"></div>
+
+  <div id="result"></div>
+
+</div>
+
+
+<script>
+
+const API_URL =
+"https://script.google.com/macros/s/AKfycbxqxN3G5sxRZr4nNCmOtZv33DgoJ8ruTDtOjl-LZnG77-bq_eNyzJ4j5MqmptYZMo77gg/exec";
+
+
+let scanner = null;
+let scannerRunning = false;
+let locked = false;
+
+
+/* ==========================
+   AFFICHAGE DU RESULTAT
+========================== */
+
+function showResult(data) {
+
+  const result = document.getElementById("result");
+
+  result.style.display = "block";
+
+  const type = data.type || "error";
+
+  result.className = type;
+
+  let html = "";
+
+  if (data.adherent) {
+
+    const prenom = data.adherent.prenom || "";
+    const nom = data.adherent.nom || "";
+
+    html +=
+      '<div class="name">' +
+      escapeHtml(prenom + " " + nom) +
+      '</div>';
+
+    if (data.adherent.cours) {
+
+      html +=
+        '<div class="details">' +
+        escapeHtml(data.adherent.cours) +
+        '</div>';
+
+    }
+
+    if (data.adherent.formule) {
+
+      html +=
+        '<div class="details">' +
+        escapeHtml(data.adherent.formule) +
+        '</div>';
+
+    }
+  }
+
+  html +=
+    '<div style="margin-top:12px;">' +
+    escapeHtml(data.message || "") +
+    '</div>';
+
+  result.innerHTML = html;
+}
+
+
+function escapeHtml(text) {
+
+  return String(text || "").replace(
+    /[&<>"']/g,
+    function(c) {
+
+      return {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+      }[c];
+
+    }
+  );
+}
+
+
+/* ==========================
+   DEMARRAGE CAMERA
+========================== */
+
+async function startScanner() {
+
+  const prof =
+    document.getElementById("prof").value.trim();
+
+  const cours =
+    document.getElementById("cours").value;
+
+  if (!prof) {
+
+    showResult({
+      type: "error",
+      message: "Indique le prénom du professeur."
+    });
+
+    return;
+  }
+
+  if (!cours) {
+
+    showResult({
+      type: "error",
+      message: "Choisis une discipline."
+    });
+
+    return;
+  }
+
+
+  document.getElementById("result").style.display =
+    "none";
+
+  document.getElementById("status").textContent =
+    "Ouverture de la caméra…";
+
+
+  try {
+
+    scanner =
+      new Html5Qrcode("reader");
+
+
+    const cameras =
+      await Html5Qrcode.getCameras();
+
+
+    if (!cameras || cameras.length === 0) {
+
+      throw new Error(
+        "Aucune caméra détectée."
+      );
+
+    }
+
+
+    let cameraId =
+      cameras[cameras.length - 1].id;
+
+
+    await scanner.start(
+
+      cameraId,
+
+      {
+        fps: 10,
+
+        qrbox: {
+          width: 250,
+          height: 250
+        }
+      },
+
+      onScanSuccess,
+
+      function() {
+        // Les images sans QR sont ignorées.
+      }
+
+    );
+
+
+    scannerRunning = true;
+
+    document.getElementById("startBtn").style.display =
+      "none";
+
+    document.getElementById("stopBtn").style.display =
+      "block";
+
+    document.getElementById("status").textContent =
+      "Présentez la carte QR devant la caméra.";
+
+  }
+
+  catch(error) {
+
+    console.error(error);
+
+    showResult({
+      type: "error",
+      message:
+        "Erreur caméra : " +
+        (error.message || error)
+    });
+
+    document.getElementById("status").textContent =
+      "";
+  }
+}
+
+
+/* ==========================
+   ARRET CAMERA
+========================== */
+
+async function stopScanner() {
+
+  if (scanner && scannerRunning) {
+
+    try {
+
+      await scanner.stop();
+
+      scanner.clear();
+
+    }
+    catch(error) {
+
+      console.log(error);
+
+    }
+  }
+
+
+  scannerRunning = false;
+
+  document.getElementById("reader").innerHTML =
+    "";
+
+  document.getElementById("startBtn").style.display =
+    "block";
+
+  document.getElementById("stopBtn").style.display =
+    "none";
+
+  document.getElementById("status").textContent =
+    "";
+}
+
+
+/* ==========================
+   QR DETECTE
+========================== */
+
+async function onScanSuccess(decodedText) {
+
+  if (locked) return;
+
+  locked = true;
+
+
+  document.getElementById("status").textContent =
+    "QR détecté — vérification…";
+
+
+  const prof =
+    document.getElementById("prof").value.trim();
+
+  const cours =
+    document.getElementById("cours").value;
+
+
+  try {
+
+    const url =
+      API_URL +
+      "?qr=" +
+      encodeURIComponent(decodedText) +
+      "&prof=" +
+      encodeURIComponent(prof) +
+      "&cours=" +
+      encodeURIComponent(cours) +
+      "&t=" +
+      Date.now();
+
+
+    console.log("Appel API :", url);
+
+
+    const response =
+      await fetch(url, {
+        method: "GET",
+        cache: "no-store"
+      });
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        "Réponse HTTP " +
+        response.status
+      );
+
+    }
+
+
+    const text =
+      await response.text();
+
+
+    console.log(
+      "Réponse API :",
+      text
+    );
+
+
+    let data;
+
+
+    try {
+
+      data =
+        JSON.parse(text);
+
+    }
+
+    catch(error) {
+
+      throw new Error(
+        "L'API ne renvoie pas du JSON. Réponse : " +
+        text.substring(0, 100)
+      );
+
+    }
+
+
+    showResult(data);
+
+
+    if (navigator.vibrate) {
+
+      if (data.ok) {
+
+        navigator.vibrate(100);
+
+      }
+
+      else {
+
+        navigator.vibrate([
+          150,
+          80,
+          150
+        ]);
+
+      }
+    }
+
+
+    document.getElementById("status").textContent =
+      "Prêt pour le prochain scan.";
+
+
+  }
+
+  catch(error) {
+
+    console.error(
+      "Erreur API :",
+      error
+    );
+
+
+    showResult({
+
+      type: "error",
+
+      message:
+        "Impossible de joindre Google Sheets. " +
+        (error.message || error)
+
+    });
+
+
+    document.getElementById("status").textContent =
+      "Erreur de connexion.";
+
+  }
+
+
+  setTimeout(
+    function() {
+
+      locked = false;
+
+    },
+    2500
+  );
+}
+
+</script>
+
+</body>
+</html>
